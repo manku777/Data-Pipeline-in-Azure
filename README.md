@@ -7,6 +7,9 @@
 ![image](https://user-images.githubusercontent.com/87073324/192124694-a68d5a44-bffd-4446-ba60-33f76ca8e64b.png)
 ![image](https://user-images.githubusercontent.com/87073324/192124761-0e946900-00c5-4141-bc45-73a077444a7a.png)
 
+# DATA SET
+ * case_death, hospital_admission, testing, country_reponse, population(blob storage)
+
 # ARCHITECTURE
   ![image](https://user-images.githubusercontent.com/87073324/192125005-d58bd000-3dd7-4c2f-b3aa-37496009292c.png)
 
@@ -29,25 +32,59 @@
     Container : raw
     File : population_by_age.tsv
   
-  * STEPS FOR COPY ACTIVITY:
-    * Open azure data factory -> Create linked service(we have to provide storage account name). Similary create a linked service for Azure data lake Gen2 and select storage account.
-    * After creating LINKED SERVICE, I created the datasets for both azure blob storage(provide path of source file) and azure data lake Gen2(provide path for sink data). While creating we need to select the format of our source data set and sink data set. While creating I selected the linked service for both blob and ADLG2, this how connection between linked service and source & sink established. File format is csv for both source and sink
-    * Now create a pipeline with COPY activity. While creating, provide the source and sink data set, which awqqw 
+  * STEPS FOR DIFFERENT ACTIVITIES:
+    * Open azure data factory -> Create LINKED SERVICE(we have to provide storage account name). Similary create a linked service for Azure data lake Gen2 and select storage account.
+    * After creating LINKED SERVICE, I created the DATASETS for both azure blob storage(provide path of source file) and azure data lake Gen2(provide path for sink data). While creating we need to select the format of our source data set and sink data set. While creating I selected the linked service for both blob and ADLG2, this how connection between linked service and source & sink established. File format is csv for both source and sink
+    * Now create a pipeline with COPY activity. While creating, provide the source and sink data set, which 
+    
+    * CONTROL FLOW ACTIVITIES - VALIDATION ACTIVITY  
+    - Created a VALIDATION ACTIVITY which will check if there is any changes in the source data set file 'population_by_age.tsv.gz' for 2 mins, if its succeed, then COPY  ACTIVITY will be performed.
+    - Created GET METADATA ACTIVITY and IF CONDITION ACTIVITY which will check if the number of columns, size are same as previous, if TRUE it will call COPY activity and if FALSE it will call WEB ACTIVITY which will send an email
+    - Created DELETE acitivty, which will run after COPY activity and will delete the source file
+
+      VALIDATION ACTIVITY(check if file exists) -> GET METADATA -> IF CONDITION ACTIVITY(if true COPY ACTIVITY and then DELETE ACTIVITY), else WEB ACTIVITY(email)
+      
+  * At last, I created a EVENT TRIGGER on 'covidreportingsa' storage account and 'population' container. We also need to provide Blob path name. Once we have created trigger, we need to attach this trigger to our pipeline(all activities above are under the pipeline)
 
 
+# DATA INGESTION FROM HTTP(ECDC DATA)
+  ![image](https://user-images.githubusercontent.com/87073324/192145181-465cc004-0c1b-4f57-a763-adce663f0dfb.png)
+
+DATA SET: cases & death, hospital admission
+
+ * Data ingestion requirements: New cases and death by country, hospital admission and ICU cases, Testing numbers, country response to Covid 19. CSV files used are cases & deaths 
+ * Create HTTP LINKED SERVICE and provide the BASE URL(till .com) and a new source data set(HTTP) with format CSV file & relative URL. We'll also create the sink data set only(provide the linked service name of AZDLG2 and the path where csv file will be store). We're not creating sink LINKED SERVICE bcz it is already created 
+earlier.
+* Create a pipeline with COPY activity(cases & death csv) and provide the source data set and sink data set.
+* Since we're extracting multiple files from ECDC, so using parameter and variable concept. Base url is same for both file and only relative URL is different. Similarly, in sink, container and folder name is same, only the name of the file under the folder is different
+ 
+  Step1 : Create parameters in pipeline (sourceRelativeURL and sinkFileName) and default value should be blank
+  Step2: Open the copy activity and provide the paremeters for 'relativeURL'(source) and 'fileName'(sink)
+  
+  Now when we will debug, it will ask for sourceRelativeURL and sinkFileName. We'll use schedule trigger to automate this. But this was still not feasible bcz we are creating four trigger for four files. 
+* In order to improve this, I used LOOK UP and FOR EACH activity
+  Step 1: Create the json file and provide the sourceBaseURL, sourceRelativeURL & sinkFileName. Upload this file by creating the 'config' folder under container in covidreportingsa
+  Step 2: Create a dataset (Azure blob storage) with file format(JSON). 
+  Step 3: Create Lookup -> ForEach(invoke COPY activity in it). We will then create a trigger and attach to the pipeline
+  
+  Note: JSON file contains sourceBaseURL, sourceRelativeURL and sinkFileName
 
 
+# Data Flows - Cases & Deaths Data Transformation
+  ![image](https://user-images.githubusercontent.com/87073324/192166010-26b2755d-0b41-4a48-a193-e5e042e558a1.png)
+  
 
-
-
-
-
-
+   
 
 
 
 # Important Concept
- * Blob storage is used to store unstructed data like text, binary data, mediam pdf etc
+ * Blob storage is used to store unstructed data like text, binary data, media, pdf etc
+ * 'Parameters' are external values passed into pipelines, datasets or linked services. The value cannot be changed inside a pipeline
+ * 'Variables' are internal values set inside a pipeline. The value can be changed inside the pipeline using set variable or append variable activity
+ * When we create a dataset we need to provide the source system like blob storage, redhshift, S3 etc
+ * Data factory submits data flows to Azure Databricks cluster and they run as spark jobs 
 
 # Challenges
  * In the population.csv file, some percentage values are ':', '15.2e', '18.p'. Here 'p' stands for provisional, 'e' stands for estimate etc
+ * Since I was extracted multiple csv files from ECDC website, creating different pipeline, data sets etc was not the feasible solution so I used Parameters & variables. Parameterized the Relative URL in source dataset and the file name in sink dataset 
