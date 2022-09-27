@@ -72,9 +72,22 @@ earlier.
 
 # Data Flows - Cases & Deaths Data Transformation
   ![image](https://user-images.githubusercontent.com/87073324/192166010-26b2755d-0b41-4a48-a193-e5e042e558a1.png)
-  
 
-   
+  Here we'll convert the raw covid and death csv file to transformed csv file. We'll add new column country code with 2 digit
+  Note: In each of the transformation, we need source and sink. Also, I have create lookup csv file which contains 2 and 3 digit country code and uploaed in data lake(inside the looup folder)
+  
+  * Source Transformation -  Create a source and built a new data set in data flow by selecting azure blob storage which will take the cases_death csv file
+  * Filter Transformation - Filter data only for the Europe since it contains data of other continent as well. In addition, few Europe continent has no country_code, so need to filter that as well. In VISUAL EXPRESSION BUILDER write expression -> continent == 'Europe' && not(isNull(country_code))
+  * Select Transformation - It's use to filter the required columns only and remove/rename the extra columns. Deleted the extra columns like 
+	continent, rate_14_day and date and added rule based mapping for date column in visual expression builder
+	MATCHING: name == 'date'
+	OUTPUT: ('reported' + '_date')
+ * Pivot Transformation - Here I took cases death csv file and grouped by country, country code, population, source, reported data and PIVOTED the DAILY COUNT and indicator(confirmed, death etc). Renamed date to reported_date
+ * Lookup tranformation: Lookup transformation is basically left join, so will join the result of our left side(PIVOT TRANSFORMATION) data with the country lookup source ON country column, it will have duplicate columns. Will select the appropriate columns from the SELECT column
+ * Select transformation: We will use select transformation and remove the duplicate columns 
+ * Sink transformation: Sink is like storing the data in the output file. So first we'll create a folder 'processed' in our data lake storage. After that, I will create a dataset(in data flow), select ADLS Gen2, select format as csv, linked service as for ADLS Gen2 and provide the file path of the 'processed' folder.
+
+At last we will create a pipeline for executing the data flow and see the results coming out it. In our 'processed' folder, our csv file is splitted into around 200 csv file on distributed node BY DEFAULT but we stored everything in one csv file ONLY. 
 
 
 
@@ -88,3 +101,4 @@ earlier.
 # Challenges
  * In the population.csv file, some percentage values are ':', '15.2e', '18.p'. Here 'p' stands for provisional, 'e' stands for estimate etc
  * Since I was extracted multiple csv files from ECDC website, creating different pipeline, data sets etc was not the feasible solution so I used Parameters & variables. Parameterized the Relative URL in source dataset and the file name in sink dataset 
+ * Cases and death file has country's data other than Europe and has 3 digit country code. However, testing file has 2 digit country code
