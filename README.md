@@ -8,7 +8,7 @@
 ![image](https://user-images.githubusercontent.com/87073324/192124761-0e946900-00c5-4141-bc45-73a077444a7a.png)
 
 # DATA SET
- * case_death, hospital_admission, testing, country_reponse, population(blob storage)
+ * case_death, hospital_admission, testing, country_reponse, population(blob storage), DIM(lookup file)
 
 # ARCHITECTURE
   ![image](https://user-images.githubusercontent.com/87073324/192125005-d58bd000-3dd7-4c2f-b3aa-37496009292c.png)
@@ -88,6 +88,26 @@ earlier.
  * Sink transformation: Sink is like storing the data in the output file. So first we'll create a folder 'processed' in our data lake storage. After that, I will create a dataset(in data flow), select ADLS Gen2, select format as csv, linked service as for ADLS Gen2 and provide the file path of the 'processed' folder.
 
 At last we will create a pipeline for executing the data flow and see the results coming out it. In our 'processed' folder, our csv file is splitted into around 200 csv file on distributed node BY DEFAULT but we stored everything in one csv file ONLY. 
+
+
+# Data Flows - Hospital admission csv file
+![image](https://user-images.githubusercontent.com/87073324/192541044-3537c02e-ff42-4f17-9d99-448abc169fef.png)
+In the hospital_admission csv file the we have columns like country, indicator(daily hopital occupancy & ICU occupancy, weekly new hospital occupancy and ICU admission), date, year_weekly, value, source. One single file is having two different level of granularity(daily and weekly), its not a good approach, so we'll split the file into two different file. So will keep daily with daily file and weekly with weekly file and KEEP THIS AS COLUMN. Also, we will have new columns reported_week_start_date and reported_week_end_date
+
+ * SOURCE TRANSFORMATION: Created a new data flow, selected ADLS Gen2, format as csv, linked service which we created for ADLS Gen2 and provided the path of hospital_admission csv file
+ * SELECT TRANSFORMATION: Remove URL, rename date to reported_date and year_week to reported_year_week
+ * LOOKUP TRANFORMATION: Performed lookup in the DIM file for retreving the two digit country code, three digit country code and population. LOOK UP will also bring unncessary columns like continent etc which we don't need. So will SELECT transformation after that to remove it.
+ * SELECT TRANSFORMATION: Select the required columns and remove the duplicates
+ * CONDITIONAL SPLIT: Through this we'll split the daily and weekly records. Provide the condition in the visual expression builder, will use INDICATOR column for this. Output will be two streams.
+ 
+ Then we need to introduce two new columns reported_start_date and reported_end_date, we can do this by the help of dim_date file that we have seen previously. In our hospital_admission file the week year_week is in the form  '2020-W06' but in our dim_date file, it is not in the correct format. So in order to achive that in dim_date column we have two columns year(2020) and week_of_year(6), we will make it in the form of '2020-W06', source that we can join this with the hospital_admission file. We will do this by derive transformation. So we wil create another source and will select the file as dim_date.csv  
+DIM_DATE file is under look up container in ADLS Gen 2.
+
+* DERIVE TRANSFORMATIONS: It is used to either modify or transform date itself within the stream. With the help of this will transform the date in the format of 2020-W01. We will create new column ecdc_year_week('2020-W06') here. In derive transformation we can create new column or choose exisitng one. We created a column(ecdc_year_week) and will create a expression  -> year + '-w' + lpad(week_of_year,2,'0')
+* AGGREGATE TRANSFORMATION: Here we will transform our data from the derive transformation to create one record per week, which will include the week start date and week end date. Also, new column dervied week column we create above. In aggregate transformation  we have GROUP BY and AGGREGATES. 
+Here first we will group by ecdc_year_week and in Aggregation we will create new columns(week start date and week end date) and will find the min and max date of the ecdc_year_week. (We will remove the remove derive transformatiom from the steam later)
+* JOIN TRANSFORMATION: We will do LEFT JOIN on Weekly split stream(reported year week) with the AGGREGATE TRANSFORMATION stream(ecdc_year_week) on the common column
+
 
 
 
