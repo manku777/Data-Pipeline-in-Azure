@@ -107,8 +107,10 @@ DIM_DATE file is under look up container in ADLS Gen 2.
 * AGGREGATE TRANSFORMATION: Here we will transform our data from the derive transformation to create one record per week, which will include the week start date and week end date. Also, new column dervied week column we create above. In aggregate transformation  we have GROUP BY and AGGREGATES. 
 Here first we will group by ecdc_year_week and in Aggregation we will create new columns(week start date and week end date) and will find the min and max date of the ecdc_year_week. (We will remove the remove derive transformatiom from the steam later)
 * JOIN TRANSFORMATION: We will do LEFT JOIN on Weekly split stream(reported year week) with the AGGREGATE TRANSFORMATION stream(ecdc_year_week) on the common column
-
-
+* PIVOT TRANSFORMATION: GROUPED BY the weekly and daily stream by country, 2_digit country code, 3_digit country code, population, reported_date, source. PIVOT key will be the value of INDICATOR column. Both weekly and daily stream will have separate PIVOT transformation. For daily, PIVOT KEY will be Daily hospital occupancy and Daily ICU occupancy. For weekly, PIVOT KEY will be weekly hospital occupancy and weekly ICU occupancy. PIVOT column will be SUM of Daily hospital occupancy and Daily ICU occupancy(for daily stream) and weekly hospital occupancy and weekly ICU occupancy(for weekly stream)
+* SORT TRANSFORMATION: Sorted weekly and daily date in DESCENDING ORDER and country in ASCENDING order
+* SINK TRANSFORMATION: Created sink separately for daily and weekly by creating data set, selecting ADLS Gen2, format as csv. After that we'll create a ETL pipeline which will run the source data, perform the transformation and will load the data in the sink.
+NOW in the processed folder in ADLS Gen2 we have three files, cases_death, hospital_admission_daily, hospital_admission_weekly
 
 
 # Important Concept
